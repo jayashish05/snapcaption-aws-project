@@ -1,0 +1,100 @@
+service: snapcaption-ai
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-south-1
+  stage: ${opt:stage, 'dev'}
+  timeout: 30
+  memorySize: 1024
+  
+  # Environment variables from .env file
+  environment:
+    NODE_ENV: production
+    REGION_NAME: ${env:AWS_REGION}
+    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
+    DYNAMODB_TABLE_NAME: ${env:DYNAMODB_TABLE_NAME}
+    GEMINI_API_KEY: ${env:GEMINI_API_KEY}
+    SESSION_SECRET: ${env:SESSION_SECRET, 'snapcaption-lambda-secret-key'}
+  
+  # IAM permissions for Lambda to access AWS services
+  iam:
+    role:
+      statements:
+        # S3 permissions
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: 
+            - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
+        
+        # DynamoDB permissions for images table
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/${env:DYNAMODB_TABLE_NAME}"
+        
+        # DynamoDB permissions for users table
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/snapcaption-users"
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/snapcaption-users/index/*"
+        
+        # DynamoDB permissions for sessions table
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:Scan
+            - dynamodb:DescribeTable
+          Resource:
+            - "arn:aws:dynamodb:${self:provider.region}:*:table/snapcaption-sessions"
+
+functions:
+  app:
+    handler: lambda.handler
+    events:
+      # Main HTTP endpoint
+      - httpApi:
+          path: /
+          method: ANY
+      # Catch-all for all other routes
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+plugins:
+  - serverless-offline
+
+# Package configuration
+package:
+  exclude:
+    - .git/**
+    - .vscode/**
+    - test-*.js
+    - setup-users-table.js
+    - node_modules/.cache/**
+    - README.md
+    - "*.md"
+    - .env.example
+
+# Custom configuration
+custom:
+  serverless-offline:
+    httpPort: 3002
+    lambdaPort: 3003

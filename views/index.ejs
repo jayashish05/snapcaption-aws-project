@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapCaption.AI - AI Image Caption Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loader {
+      border: 3px solid #f3f4f6;
+      border-top: 3px solid #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .image-card {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+    }
+    .image-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Lightbox Styles */
+    .lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 9999;
+      animation: fadeIn 0.3s ease;
+    }
+    .lightbox.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox-image {
+      max-width: 90%;
+      max-height: 85vh;
+      object-fit: contain;
+      animation: zoomIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes zoomIn {
+      from { transform: scale(0.8); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 1rem;
+      cursor: pointer;
+      font-size: 1.5rem;
+      transition: all 0.2s;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox-nav:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-50%) scale(1.1);
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+      border-radius: 8px;
+    }
+    .lightbox-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .lightbox-caption {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+      color: white;
+      padding: 2rem 1.5rem 1.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <%- include('partials/header') %>
+  
+  <main class="container mx-auto px-4 py-8 max-w-7xl">
+    <!-- Header Section -->
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold text-gray-900 mb-3">SnapCaption.AI</h1>
+      <p class="text-lg text-gray-600 mb-6">AI-Powered Image Caption Generator</p>
+      
+      <!-- Total Count Badge -->
+      <div class="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold">
+        Total Images: <span id="totalCount"><%= totalCount %></span>
+      </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="max-w-2xl mx-auto mb-12 bg-white rounded-lg shadow-md p-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">Upload New Image</h2>
+      
+      <form id="uploadForm" class="space-y-4">
+        <div id="uploadArea" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+          <input 
+            type="file" 
+            id="imageInput" 
+            accept="image/*" 
+            class="hidden"
+            required
+          >
+          <label for="imageInput" class="cursor-pointer block">
+            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <p class="mt-2 text-sm text-gray-600">
+              <span class="font-semibold text-blue-600">Click to upload</span> or drag and drop
+            </p>
+            <p class="text-xs text-gray-500 mt-1">PNG, JPG, JPEG up to 5MB</p>
+          </label>
+        </div>
+
+        <!-- Image Preview -->
+        <div id="imagePreview" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+          <img id="previewImg" src="" alt="Preview" class="max-h-80 w-auto mx-auto rounded-lg shadow-lg">
+          <p id="fileName" class="text-center text-sm text-gray-600 mt-3 font-medium"></p>
+        </div>
+
+        <button 
+          type="submit" 
+          id="generateBtn"
+          class="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          Generate Caption
+        </button>
+      </form>
+
+      <!-- Loading Indicator -->
+      <div id="uploadLoader" class="hidden text-center mt-6">
+        <div class="loader mx-auto"></div>
+        <p class="text-gray-600 mt-3">Generating caption with AI...</p>
+      </div>
+
+      <!-- Caption Preview Section -->
+      <div id="captionPreview" class="hidden mt-6 p-6 bg-gray-50 rounded-lg border-2 border-blue-200">
+        <h3 class="text-lg font-bold text-gray-800 mb-3">✨ Generated Caption</h3>
+        <p id="generatedCaption" class="text-gray-700 mb-4 text-base leading-relaxed"></p>
+        
+        <div class="flex gap-3">
+          <button 
+            id="saveImageBtn"
+            class="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            💾 Save Image & Caption
+          </button>
+          <button 
+            id="regenerateNewBtn"
+            class="flex-1 bg-gray-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+          >
+            🔄 Regenerate
+          </button>
+          <button 
+            id="cancelBtn"
+            class="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      </div>
+
+      <!-- Saving Indicator -->
+      <div id="saveLoader" class="hidden text-center mt-6">
+        <div class="loader mx-auto"></div>
+        <p class="text-gray-600 mt-3">Saving to cloud...</p>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="max-w-2xl mx-auto mb-8">
+      <form action="/search" method="GET" class="relative">
+        <input 
+          type="text" 
+          name="q" 
+          value="<%= searchTerm %>"
+          placeholder="Search by caption or date (YYYY-MM-DD)..."
+          class="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+        <svg class="absolute left-4 top-3.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </form>
+      <% if (searchTerm) { %>
+        <div class="mt-2 text-sm text-gray-600">
+          Showing results for: <span class="font-semibold">"<%= searchTerm %>"</span>
+          <a href="/" class="text-blue-600 hover:underline ml-2">Clear search</a>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Image Gallery -->
+    <div id="gallery">
+      <% if (images.length === 0) { %>
+        <div class="text-center py-16">
+          <svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <p class="text-gray-500 mt-4 text-lg">No images found. Upload your first image!</p>
+        </div>
+      <% } else { %>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <% images.forEach((image, index) => { %>
+            <div class="image-card bg-white rounded-lg shadow-md overflow-hidden" onclick="openLightbox(<%= index %>)">
+              <div class="aspect-w-16 aspect-h-12 bg-gray-200">
+                <img 
+                  src="<%= image.imageUrl %>" 
+                  alt="<%= image.caption %>"
+                  class="w-full h-64 object-cover"
+                  loading="lazy"
+                  data-lightbox-image="<%= image.imageUrl %>"
+                  data-lightbox-caption="<%= image.caption %>"
+                  data-lightbox-date="<%= new Date(image.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %>"
+                  data-lightbox-id="<%= image.image_id %>"
+                >
+              </div>
+              <div class="p-4">
+                <p class="text-gray-700 text-sm mb-3 line-clamp-3" data-caption-id="<%= image.image_id %>">
+                  <%= image.caption %>
+                </p>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <span>
+                    <%= new Date(image.createdAt).toLocaleDateString('en-US', { 
+                      year: 'numeric', 
+                      month: 'short', 
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) %>
+                  </span>
+                </div>
+                <button 
+                  onclick="regenerateCaption('<%= image.image_id %>', '<%= image.imageUrl %>')"
+                  class="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  🔄 Generate New Caption
+                </button>
+                <div id="loader-<%= image.image_id %>" class="hidden text-center mt-3">
+                  <div class="loader mx-auto" style="width: 24px; height: 24px; border-width: 2px;"></div>
+                  <p class="text-xs text-gray-600 mt-1">Generating...</p>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </main>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox" class="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">✕ Close</button>
+    <button class="lightbox-nav" style="left: 20px;" onclick="navigateLightbox(-1)">‹</button>
+    <button class="lightbox-nav" style="right: 20px;" onclick="navigateLightbox(1)">›</button>
+    <img id="lightboxImage" class="lightbox-image" src="" alt="">
+    <div class="lightbox-caption">
+      <p id="lightboxCaption" class="text-lg font-medium mb-2"></p>
+      <p id="lightboxDate" class="text-sm text-gray-300"></p>
+      <button 
+        id="lightboxRegenerate"
+        onclick="regenerateLightboxCaption(event)"
+        class="mt-3 bg-white bg-opacity-20 hover:bg-opacity-30 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+      >
+        🔄 Generate New Caption
+      </button>
+      <div id="lightboxLoader" class="hidden mt-3">
+        <div class="loader mx-auto" style="width: 24px; height: 24px; border-width: 2px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <%- include('partials/footer') %>
+
+  <script>
+    // Global variables for storing image data
+    let currentImageData = null;
+
+    // DOM elements
+    const imageInput = document.getElementById('imageInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const imagePreview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    const fileName = document.getElementById('fileName');
+    const uploadForm = document.getElementById('uploadForm');
+    const generateBtn = document.getElementById('generateBtn');
+    const uploadLoader = document.getElementById('uploadLoader');
+    const captionPreview = document.getElementById('captionPreview');
+    const generatedCaption = document.getElementById('generatedCaption');
+    const saveImageBtn = document.getElementById('saveImageBtn');
+    const regenerateNewBtn = document.getElementById('regenerateNewBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const saveLoader = document.getElementById('saveLoader');
+
+    // Image selection preview
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        console.log('File selected:', file.name);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          previewImg.src = event.target.result;
+          imagePreview.classList.remove('hidden');
+          uploadArea.classList.add('hidden');
+          fileName.textContent = file.name;
+          captionPreview.classList.add('hidden');
+          console.log('Image preview displayed');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Generate caption form submission
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const file = imageInput.files[0];
+      if (!file) {
+        alert('Please select an image');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      generateBtn.disabled = true;
+      uploadLoader.classList.remove('hidden');
+      captionPreview.classList.add('hidden');
+
+      try {
+        const response = await fetch('/generate-caption', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Convert the file to base64 for saving later (using the original file from input)
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64Data = event.target.result.split(',')[1]; // Remove data:image/...;base64, prefix
+            
+            // Store image data for later save
+            currentImageData = {
+              imageBuffer: base64Data,
+              mimeType: data.mimeType,
+              originalName: data.originalName,
+              caption: data.caption
+            };
+          };
+          reader.readAsDataURL(file);
+
+          // Display the caption
+          generatedCaption.textContent = data.caption;
+          captionPreview.classList.remove('hidden');
+          
+          // Image preview is already displayed from the file input change event
+          imagePreview.classList.remove('hidden');
+        } else {
+          alert('Error: ' + (data.error || 'Failed to generate caption'));
+        }
+      } catch (error) {
+        console.error('Caption generation error:', error);
+        alert('Failed to generate caption. Please try again.');
+      } finally {
+        generateBtn.disabled = false;
+        uploadLoader.classList.add('hidden');
+      }
+    });
+
+    // Save image and caption
+    saveImageBtn.addEventListener('click', async () => {
+      if (!currentImageData) {
+        alert('No image data available');
+        return;
+      }
+
+      saveImageBtn.disabled = true;
+      saveLoader.classList.remove('hidden');
+      captionPreview.classList.add('hidden');
+
+      try {
+        const response = await fetch('/save-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(currentImageData),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Reload the page to show the new image
+          window.location.reload();
+        } else {
+          alert('Error: ' + (data.error || 'Failed to save image'));
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        alert('Failed to save image. Please try again.');
+      } finally {
+        saveImageBtn.disabled = false;
+        saveLoader.classList.add('hidden');
+      }
+    });
+
+    // Regenerate caption
+    regenerateNewBtn.addEventListener('click', () => {
+      uploadForm.dispatchEvent(new Event('submit'));
+    });
+
+    // Cancel and reset
+    cancelBtn.addEventListener('click', () => {
+      captionPreview.classList.add('hidden');
+      imagePreview.classList.add('hidden');
+      uploadArea.classList.remove('hidden');
+      uploadForm.reset();
+      currentImageData = null;
+    });
+
+    // Regenerate caption for existing images
+    async function regenerateCaption(imageId, imageUrl) {
+      const loader = document.getElementById(`loader-${imageId}`);
+      const captionElement = document.querySelector(`[data-caption-id="${imageId}"]`);
+      
+      loader.classList.remove('hidden');
+
+      try {
+        const response = await fetch(`/regenerate-caption/${imageId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageUrl }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          captionElement.textContent = data.caption;
+        } else {
+          alert('Error: ' + (data.error || 'Failed to regenerate caption'));
+        }
+      } catch (error) {
+        console.error('Regenerate error:', error);
+        alert('Failed to regenerate caption. Please try again.');
+      } finally {
+        loader.classList.add('hidden');
+      }
+    }
+
+    // Lightbox functionality
+    let currentLightboxIndex = 0;
+    const lightboxImages = Array.from(document.querySelectorAll('[data-lightbox-image]'));
+
+    function openLightbox(index) {
+      currentLightboxIndex = index;
+      updateLightbox();
+      document.getElementById('lightbox').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+      document.body.style.overflow = 'auto';
+    }
+
+    function navigateLightbox(direction) {
+      currentLightboxIndex = (currentLightboxIndex + direction + lightboxImages.length) % lightboxImages.length;
+      updateLightbox();
+    }
+
+    function updateLightbox() {
+      if (lightboxImages.length === 0) return;
+      
+      const currentImage = lightboxImages[currentLightboxIndex];
+      document.getElementById('lightboxImage').src = currentImage.dataset.lightboxImage;
+      document.getElementById('lightboxCaption').textContent = currentImage.dataset.lightboxCaption;
+      document.getElementById('lightboxDate').textContent = currentImage.dataset.lightboxDate;
+      document.getElementById('lightboxRegenerate').dataset.imageId = currentImage.dataset.lightboxId;
+      document.getElementById('lightboxRegenerate').dataset.imageUrl = currentImage.dataset.lightboxImage;
+    }
+
+    async function regenerateLightboxCaption(event) {
+      event.stopPropagation();
+      const button = event.target;
+      const imageId = button.dataset.imageId;
+      const imageUrl = button.dataset.imageUrl;
+      const loader = document.getElementById('lightboxLoader');
+      const captionElement = document.getElementById('lightboxCaption');
+      
+      button.disabled = true;
+      loader.classList.remove('hidden');
+
+      try {
+        const response = await fetch(`/regenerate-caption/${imageId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ imageUrl }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          captionElement.textContent = data.caption;
+          // Update the grid caption too
+          const gridCaption = document.querySelector(`[data-caption-id="${imageId}"]`);
+          if (gridCaption) {
+            gridCaption.textContent = data.caption;
+          }
+          // Update lightbox data
+          lightboxImages[currentLightboxIndex].dataset.lightboxCaption = data.caption;
+        } else {
+          alert('Error: ' + (data.error || 'Failed to regenerate caption'));
+        }
+      } catch (error) {
+        console.error('Regenerate error:', error);
+        alert('Failed to regenerate caption. Please try again.');
+      } finally {
+        button.disabled = false;
+        loader.classList.add('hidden');
+      }
+    }
+
+    // Keyboard navigation for lightbox
+    document.addEventListener('keydown', (e) => {
+      const lightbox = document.getElementById('lightbox');
+      if (!lightbox.classList.contains('active')) return;
+      
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') navigateLightbox(-1);
+      if (e.key === 'ArrowRight') navigateLightbox(1);
+    });
+
+    // Close lightbox on background click
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+      if (e.target.id === 'lightbox') {
+        closeLightbox();
+      }
+    });
+
+    // Touch swipe support for mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    document.getElementById('lightbox').addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+
+    document.getElementById('lightbox').addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    });
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      if (touchEndX < touchStartX - swipeThreshold) {
+        navigateLightbox(1); // Swipe left
+      }
+      if (touchEndX > touchStartX + swipeThreshold) {
+        navigateLightbox(-1); // Swipe right
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+{
+  "name": "snapcaption-ai",
+  "version": "1.0.0",
+  "description": "AI-powered image caption generator with AWS S3 and DynamoDB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f app -t",
+    "local": "serverless offline",
+    "setup:sessions": "node setup-sessions-table.js",
+    "setup:users": "node setup-users-table.js"
+  },
+  "keywords": [
+    "ai",
+    "image",
+    "caption",
+    "aws",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.515.0",
+    "@aws-sdk/client-s3": "^3.515.0",
+    "@aws-sdk/lib-dynamodb": "^3.515.0",
+    "@aws-sdk/s3-request-presigner": "^3.917.0",
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^3.0.2",
+    "connect-dynamodb": "^3.0.5",
+    "connect-dynamodb-session": "^1.1.0",
+    "dotenv": "^16.4.1",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-session": "^1.18.2",
+    "multer": "^1.4.5-lts.1",
+    "serverless-http": "^4.0.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "serverless-offline": "^14.4.0"
+  }
+}
